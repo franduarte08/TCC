@@ -1,0 +1,48 @@
+/* REXX */
+trace off
+parse upper arg SSID .
+file.input = 'DB2P.ISERIES.SAIDA.REXX'
+file.output = 'DB2P.ISERIES.CHECKDTA'
+
+/*"ALLOC DA('"file.input"') File(infile) SHR REUSE"*/
+"ALLOC FILE(DISDB) DDNAME(DISDB) SHR"
+
+record. = ''
+line.   = ''
+
+"EXECIO * DISKR disdb (stem record."
+tsname = strip(substr(record.1, 81, 8))
+j = 0
+say record.0
+do i = 1 to record.0
+   pos2to10  = strip(substr(record.i, 2, 8))
+   if pos2to10 = 'DSNT362I' then do
+      dbname   = strip(substr(record.i, 33, 8))
+      end
+   else
+      type     = strip(substr(record.i, 11, 2))
+      status   = strip(substr(record.i, 22, 50))
+      if (type = 'TS' |  type = 'IX') &  status <> ' ' then do
+         tsname   = strip(substr(record.i, 2, 8))
+         startcmd.0 = 1
+         startcmd.1 = '-START DB('dbname') SP('tsname') ACC(RW)'
+         "EXECIO "startcmd.0" DISKW STARTDB (STEM startcmd."
+         say startcmd.1
+         end
+end
+
+startcmd.0 = 1
+startcmd.1 = '-DIS DB(*) SP(*) RESTRICT(RO)'
+"EXECIO "startcmd.0" DISKW STARTDB (STEM startcmd."
+return 0;
+
+/* say 'Processando 'tsname
+   dsname = file.output'('tsname')'
+   "ALLOC DA('"dsname"') File(outfile) SHR REUSE"
+   "EXECIO 1 DISKW outfile (stem output. FINIS"
+   "EXECIO * DISKR infile (stem record." */
+/*say 'Processando 'tsname
+dsname = file.output'('tsname')'
+"ALLOC DA('"dsname"') File(outfile) SHR REUSE"
+"EXECIO 1 DISKW outfile (stem output. FINIS" */
+

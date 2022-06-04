@@ -1,0 +1,119 @@
+//TCC0001  JOB (TCC001),DPE,MSGCLASS=T,REGION=0K,
+//  NOTIFY=&SYSUID
+//*--------------------------------------------------------------------*
+//*
+//*--------------------------------------------------------------------*
+//         EXPORT SYMLIST=(SSID,DB2LIB)
+//         SET SSID=DB2T                  ** SSID
+//         SET DB2LIB=DB2T                ** HIGH LEVEL DO DB2
+//*--------------------------------------------------------------------*
+//* QUERY INLINE NA SYSIBM.SYSCOPY PARA DETERMINAR TABELAS SEM COPY
+//*--------------------------------------------------------------------*
+//QUERY    EXEC PGM=IEBGENER
+//SYSPRINT DD SYSOUT=*
+//SYSIN    DD DUMMY
+//SYSUT1   DD *
+SELECT DISTINCT
+  CHAR('    INCLUDE TABLESPACE '||STRIP(A.DBNAME)||'.'||STRIP(A.TSNAME)
+      ,80)
+  FROM SYSIBM.SYSTABLES A
+WHERE A.TYPE = 'T'
+  AND SUBSTR(A.DBNAME,1,3) <> 'DSN'
+  AND NOT EXISTS (SELECT '1' FROM SYSIBM.SYSCOPY B
+                   WHERE B.DBNAME = A.DBNAME
+                     AND B.TSNAME = A.TSNAME
+                     AND B.ICTYPE = 'F'
+                     AND B.ICDATE >= '220101'
+  AND B.TIMESTAMP <(CURRENT_TIMESTAMP - 1 DAYS))
+;
+//SYSUT2   DD DSN=&&SQLCMD,DISP=(,PASS),
+//            UNIT=SYSDA,
+//            SPACE=(TRK,(15,15),RLSE),
+//            DCB=(LRECL=80,BLKSIZE=28000,RECFM=FB)
+//*---------------------------------------------------------------------
+//* PRINT DA QUERY ACIMA NA SYSOUT
+//*---------------------------------------------------------------------
+//PRINTQRY EXEC PGM=IEBGENER
+//SYSPRINT DD SYSOUT=*
+//SYSIN    DD DUMMY
+//SYSUT1   DD DSN=&&SQLCMD,DISP=OLD             -- PRINT DA QUERY
+//SYSUT2   DD SYSOUT=*                          -- PRINT ON SYSOUT
+//*---------------------------------------------------------------------
+//* UTILITARIO DSNTIAUL
+//*---------------------------------------------------------------------
+//DSNTIUAL EXEC PGM=IKJEFT1A,DYNAMNBR=20
+//STEPLIB  DD DSN=&DB2LIB..SDSNEXIT,DISP=SHR
+//         DD DSN=&DB2LIB..SDSNLOAD,DISP=SHR
+//SYSTSIN  DD *,SYMBOLS=EXECSYS
+DSN SYSTEM(&SSID.)
+RUN  PROGRAM(DSNTIAUL) PLAN(DSNTIAUL) -
+     LIB('&DB2LIB..RUNLIB.LOAD') PARMS('SQL')
+END
+//SYSUDUMP DD SYSOUT=*
+//SYSTSPRT DD SYSOUT=*
+//SYSPRINT DD SYSOUT=*
+//SYSOUT   DD SYSOUT=*
+//SYSPUNCH DD SYSOUT=*
+//SYSIN    DD DSN=&&SQLCMD,DISP=OLD             -- SQL COMMAND
+//SYSREC00 DD DSN=&&REPORT,DISP=(,PASS),        -- QUERY OUTPUT
+//            UNIT=SYSDA,
+//            SPACE=(CYL,(15,15),RLSE),
+//            DCB=(LRECL=80,BLKSIZE=28000,RECFM=FB)
+//*---------------------------------------------------------------------
+//* A OUTPUT DA QUERY TRUNCADA EM 80 BYTES
+//*---------------------------------------------------------------------
+//TRUNC80  EXEC PGM=SORT
+//SYSOUT   DD SYSOUT=*
+//SORTIN   DD DSN=&&REPORT,DISP=OLD             -- QUERY OUTPUT
+//SORTOUT  DD DSN=&&INCLUDE,DISP=(,PASS),       -- REBIND COMMANDS ONLY
+//            UNIT=SYSDA,
+//            SPACE=(CYL,(15,15),RLSE),
+//            DCB=(LRECL=80,BLKSIZE=28000,RECFM=FB)
+//SYSIN    DD *
+  SORT FIELDS=COPY
+  OUTREC FIELDS=(1,80)
+END
+//*--------------------------------------------------------------------*
+//* GERA OS COMANDOS PARA PROCESSAR OS COPY
+//*--------------------------------------------------------------------*
+//GENCOPY  EXEC PGM=IEBGENER
+//SYSPRINT DD SYSOUT=*
+//SYSIN    DD DUMMY
+//SYSUT1   DD *
+OPTIONS PREVIEW
+--OPTIONS EVENT(ITEMERROR,SKIP)
+
+TEMPLATE DDCOPY
+    DSN(&USERID..&SSID..&DB..&TS..D&DT..T&HOUR.&MINUTE.)
+    UNIT (SYSDA)
+    SPACE (10,10) TRK
+    DISP(NEW,CATLG,DELETE)
+
+LISTDEF DDLIST
+//         DD DSN=&&INCLUDE,DISP=OLD --CONTEM A LISTA GERADA PELA QUERY
+//         DD *
+
+COPY LIST DDLIST COPYDDN(DDCOPY)
+//SYSUT2   DD DSN=&&CPYCMD,DISP=(,PASS),
+//            UNIT=SYSDA,
+//            SPACE=(TRK,(15,15),RLSE),
+//            DCB=(LRECL=80,BLKSIZE=28000,RECFM=FB)
+//*---------------------------------------------------------------------
+//* PRINT DOS COMANDOS DE COPY SOMENTE PARA CONFERENCIA VISUAL SIMPLES
+//*---------------------------------------------------------------------
+//PRINTCPY EXEC PGM=IEBGENER
+//SYSPRINT DD SYSOUT=*
+//SYSIN    DD DUMMY
+//SYSUT1   DD DSN=&&CPYCMD,DISP=OLD         -- COMANDOS DE COPY
+//SYSUT2   DD SYSOUT=*                      -- PRINT ON SYSOUT
+//*--------------------------------------------------------------------*
+//* PROCESSA COMANDOS DE COPY
+//*--------------------------------------------------------------------*
+//COPY     EXEC PGM=DSNUTILB,PARM='&SSID.'
+//STEPLIB  DD   DSN=&DB2LIB..SDSNEXIT,DISP=SHR
+//         DD   DSN=&DB2LIB..SDSNLOAD,DISP=SHR
+//SYSPRINT DD   SYSOUT=*
+//UTPRINT  DD   SYSOUT=*
+//SYSUDUMP DD   SYSOUT=*
+//SYSIN    DD   DSN=&&CPYCMD,DISP=OLD
+
