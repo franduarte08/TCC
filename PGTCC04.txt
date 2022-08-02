@@ -1,0 +1,96 @@
+//TCC0004  JOB (TCC001),DPE,MSGCLASS=T,REGION=0K,                       JOB00259
+//  NOTIFY=&SYSUID TYPRUN=SCAN
+//*--------------------------------------------------------------------*
+//*
+//*--------------------------------------------------------------------*
+//         EXPORT SYMLIST=(SSID,DB2LIB)
+//         SET SSID=DB2T                  ** SSID
+//         SET DB2LIB=DB2T                ** HIGH LEVEL DO DB2
+//*--------------------------------------------------------------------*
+//* QUERY INLINE NA SYSIBM.SYSCOPY PARA DETERMINAR TABELAS SEM COPY
+//*--------------------------------------------------------------------*
+//QUERY    EXEC PGM=IEBGENER
+//SYSPRINT DD SYSOUT=*
+//SYSIN    DD DUMMY
+//SYSUT1   DD *
+SELECT DISTINCT CHAR('RUNSTATS TABLESPACE '
+|| STRIP(DBNAME) || '.'
+|| STRIP(TSNAME),80)
+,DBNAME,TSNAME,1
+FROM SYSIBM.SYSTABLEPART
+WHERE DBNAME = 'FRANDSDB'
+AND STATSTIME < CURRENT TIMESTAMP - 7 DAYS
+UNION ALL
+SELECT DISTINCT CHAR(
+'    TABLE(ALL) INDEX(ALL) UPDATE ALL SHRLEVEL CHANGE',80)
+,DBNAME,TSNAME,2
+FROM SYSIBM.SYSTABLEPART
+WHERE DBNAME = 'FRANDSDB'
+AND STATSTIME < CURRENT TIMESTAMP - 7 DAYS
+ORDER BY DBNAME,TSNAME,4;
+//SYSUT2   DD DSN=&&SQLCMD,DISP=(,PASS),
+//            UNIT=SYSDA,
+//            SPACE=(TRK,(15,15),RLSE),
+//            DCB=(LRECL=80,BLKSIZE=28000,RECFM=FB)
+//*---------------------------------------------------------------------
+//* PRINT DA QUERY ACIMA NA SYSOUT
+//*---------------------------------------------------------------------
+//PRINTQRY EXEC PGM=IEBGENER
+//SYSPRINT DD SYSOUT=*
+//SYSIN    DD DUMMY
+//SYSUT1   DD DSN=&&SQLCMD,DISP=OLD             -- PRINT DA QUERY
+//SYSUT2   DD SYSOUT=*                          -- PRINT ON SYSOUT
+//*---------------------------------------------------------------------
+//* UTILITARIO DSNTIAUL
+//*---------------------------------------------------------------------
+//DSNTIUAL EXEC PGM=IKJEFT1A,DYNAMNBR=20
+//STEPLIB  DD DSN=&DB2LIB..SDSNEXIT,DISP=SHR
+//         DD DSN=&DB2LIB..SDSNLOAD,DISP=SHR
+//SYSTSIN  DD *,SYMBOLS=EXECSYS
+DSN SYSTEM(&SSID.)
+RUN  PROGRAM(DSNTIAUL) PLAN(DSNTIAUL) -
+     LIB('&DB2LIB..RUNLIB.LOAD') PARMS('SQL')
+END
+//SYSUDUMP DD SYSOUT=*
+//SYSTSPRT DD SYSOUT=*
+//SYSPRINT DD SYSOUT=*
+//SYSOUT   DD SYSOUT=*
+//SYSPUNCH DD SYSOUT=*
+//SYSIN    DD DSN=&&SQLCMD,DISP=OLD             -- SQL COMMAND
+//SYSREC00 DD DSN=&&REPORT,DISP=(,PASS),        -- QUERY OUTPUT
+//            UNIT=SYSDA,
+//            SPACE=(CYL,(15,15),RLSE),
+//            DCB=(LRECL=80,BLKSIZE=28000,RECFM=FB)
+//*---------------------------------------------------------------------
+//* A OUTPUT DA QUERY TRUNCADA EM 80 BYTES
+//*---------------------------------------------------------------------
+//TRUNC80  EXEC PGM=SORT
+//SYSOUT   DD SYSOUT=*
+//SORTIN   DD DSN=&&REPORT,DISP=OLD             -- QUERY OUTPUT
+//SORTOUT  DD DSN=&&RTS80B,DISP=(,PASS),       -- REBIND COMMANDS ONLY
+//            UNIT=SYSDA,
+//            SPACE=(CYL,(15,15),RLSE),
+//            DCB=(LRECL=80,BLKSIZE=28000,RECFM=FB)
+//SYSIN    DD *
+  SORT FIELDS=COPY
+  OUTREC FIELDS=(1,80)
+END
+//*---------------------------------------------------------------------
+//* PRINT DOS COMANDOS DE COPY SOMENTE PARA CONFERENCIA VISUAL SIMPLES
+//*---------------------------------------------------------------------
+//PRINTCPY EXEC PGM=IEBGENER
+//SYSPRINT DD SYSOUT=*
+//SYSIN    DD DUMMY
+//SYSUT1   DD DSN=&&RTS80B,DISP=OLD         -- COMANDOS DE COPY
+//SYSUT2   DD SYSOUT=*                      -- PRINT ON SYSOUT
+//*--------------------------------------------------------------------*
+//* PROCESSA COMANDOS DE RUNSTATS
+//*--------------------------------------------------------------------*
+//RUNSTATS EXEC PGM=DSNUTILB,PARM='&SSID.'
+//STEPLIB  DD   DSN=&DB2LIB..SDSNEXIT,DISP=SHR
+//         DD   DSN=&DB2LIB..SDSNLOAD,DISP=SHR
+//SYSPRINT DD   SYSOUT=*
+//UTPRINT  DD   SYSOUT=*
+//SYSUDUMP DD   SYSOUT=*
+//SYSIN    DD   DSN=&&RTS80B,DISP=OLD
+
